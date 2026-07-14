@@ -19,7 +19,7 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Чистый HTTP-запрос к бесплатной модели без использования библиотеки openai"""
+    """Прямой HTTP-запрос к бесплатной модели Qwen через шлюз Hugging Face"""
     url = "https://huggingface.co"
     
     headers = {
@@ -42,12 +42,12 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                 if response.status == 200:
                     data = await response.json()
                     
-                    # Hugging Face возвращает массив со словарем генерации
+                    # Извлекаем сгенерированный текст из формата ответа Hugging Face
                     if isinstance(data, list) and len(data) > 0:
                         reply = data[0].get('generated_text', '')
                         reply = reply.strip()
                         
-                        # Если ИИ всё же прислал пустоту или мусор
+                        # Если ИИ прислал пустоту или слишком короткий текст
                         if not reply or len(reply) < 2:
                             return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
                         return reply
@@ -63,6 +63,7 @@ async def generate_ai_response(user_text: str, username: str) -> str:
 
 @dp.message()
 async def handle_group_messages(message: types.Message):
+    """Считывание сообщений при упоминании бота"""
     bot_info = await bot.get_me()
     bot_username = f"@{bot_info.username}"
     
@@ -79,7 +80,7 @@ async def handle_group_messages(message: types.Message):
         reply_text = await generate_ai_response(clean_text, user_name)
         await message.reply(reply_text)
 
-# --- Веб-сервер для удержания Render.com в активном состоянии ---
+# --- Веб-сервер для прохождения проверки (Health Check) на Render ---
 async def handle_ping(request):
     return web.Response(text="Бот Миланы работает!")
 
