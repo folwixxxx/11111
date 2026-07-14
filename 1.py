@@ -4,42 +4,41 @@ from openai import AsyncOpenAI
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# ИСПРАВЛЕНО: Сюда подставлен ваш рабочий ключ SambaNova
-SAMBANOVA_API_KEY = "28e44a8a-e4e0-404b-af2e-937385fe22a6"
+# ВСТАВЬТЕ СЮДА ВАШ НОВЫЙ ТОКЕН HUGGING FACE (НАЧИНАЕТСЯ НА hf_...)
+HF_API_TOKEN = "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"
 
-# Прямое подключение к Telegram (без проксей, так как Render работает из Европы)
+# Прямое подключение к Telegram (Render работает из Европы, блокировок нет)
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
-# ИСПРАВЛЕНО: Правильный адрес API-облака SambaNova
+# Подключаемся к бесплатному безлимитному шлюзу Hugging Face
 ai_client = AsyncOpenAI(
-    api_key=SAMBANOVA_API_KEY,
-    base_url="https://sambanova.ai"  
+    api_key=HF_API_TOKEN,
+    base_url="https://huggingface.co"  
 )
 
 # Промпт характера Миланы Стар
 SYSTEM_PROMPT = (
     "Ты — популярный блогер и певица Милана Стар (Milana Star). Тебе 16-17 лет. "
     "Общаешься дружелюбно, используешь современный молодежный сленг, "
-    "много эмодзи (✨, ❤️, 👑) and отвечаешь очень коротко (1-2 sentences)."
+    "много эмодзи (✨, ❤️, 👑) и отвечаешь очень коротко (1-2 предложения)."
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
     try:
         response = await ai_client.chat.completions.create(
-            # Официальная бесплатная модель, доступная на SambaNova Cloud
-            model="Meta-Llama-3.1-8B-Instruct",
+            # Используем мощную и бесплатную модель Qwen через сервер Hugging Face
+            model="Qwen/Qwen2.5-72B-Instruct",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"Пользователь @{username} пишет тебе: {user_text}"}
             ],
             max_tokens=100
         )
-        # Стандартное чтение ответа через массив choices
-        return response.choices[0].message.content
+        return response.choices.message.content
     except Exception as e:
         print(f"Ошибка ИИ на сервере: {e}")
-        return "Ой, залагало что-то! ✨ Напишите позже! ❤️"
+        return "Ой, залагало что-то! ✨ Напишите позже! "
 
 @dp.message()
 async def handle_group_messages(message: types.Message):
