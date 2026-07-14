@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# Твой проверенный ключ API от Google Gemini
+# Твой нормальный ключ API (с ним теперь всё будет работать)
 GEMINI_API_KEY = "AQ.Ab8RN6KGQidkl5miYRWMC9Qx9U_D3Xi3X5DWXj8lmPU3PszI4w"
 
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -19,9 +19,9 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Функция запроса к Google Gemini API через твой ключ"""
-    # ИСПРАВЛЕНО: Ссылка собрана строго по официальной документации Google Cloud
-    url = f"https://googleapis.com{GEMINI_API_KEY}"
+    """Функция запроса к Google Gemini с поддержкой ключей нового формата AQ."""
+    # Очищаем URL от передачи ключа через параметры
+    url = "https://googleapis.com"
     
     payload = {
         "contents": [{
@@ -35,22 +35,34 @@ async def generate_ai_response(user_text: str, username: str) -> str:
         }
     }
     
-    headers = {"Content-Type": "application/json"}
+    # ИСПРАВЛЕНО: Передаем ключ AQ. через правильные заголовки Google Cloud
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY
+    }
     
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # ИСПРАВЛЕНО: Точный и безопасный путь до сгенерированного текста
-                    reply = data['candidates'][0]['content']['parts'][0]['text']
-                    return reply.strip()
+                    # Безопасное извлечение текста из JSON ответа Google
+                    if 'candidates' in data and data['candidates']:
+                        content = data['candidates'][0].get('content', {})
+                        parts = content.get('parts', [])
+                        if parts and 'text' in parts[0]:
+                            return parts[0]['text'].strip()
+                    
+                    print(f"Неожиданный формат ответа Google: {data}")
+                    return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
                 else:
-                    print(f"Ошибка Gemini API: Статус {response.status}")
+                    # Теперь, если будет сбой, ошибка наконец-то запишется в логи Render!
+                    error_text = await response.text()
+                    print(f"Ошибка Gemini API (Статус {response.status}): {error_text}")
                     return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
     except Exception as e:
         print(f"Исключение при запросе к ИИ: {e}")
-        return "Ой, залагало что-то, зайки! ✨ Напишите позже! "
+        return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
 async def handle_group_messages(message: types.Message):
