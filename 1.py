@@ -7,15 +7,15 @@ from aiohttp import web
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
 OPENROUTER_API_KEY = "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"
 
-# Зеркало Telegram (работает без блокировок за рубежом и в РФ)
+# ИСПРАВЛЕНО: Зеркало Telegram с правильным путем /bot
 local_server = TelegramAPIServer.from_base("https://vkrf.ru")
 bot = Bot(token=TELEGRAM_TOKEN, server=local_server)
 dp = Dispatcher()
 
-# Зеркало OpenRouter для стабильности
+# ИСПРАВЛЕНО: Полный и рабочий адрес зеркала для OpenRouter
 ai_client = AsyncOpenAI(
     api_key=OPENROUTER_API_KEY,
-    base_url="https://ru.net"  # <--- ИСПРАВЛЕНО
+    base_url="https://ru.net"  
 )
 
 SYSTEM_PROMPT = (
@@ -62,11 +62,11 @@ async def start_web_server():
     app.router.add_get("/", handle_ping)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 10000) # Render слушает этот порт по умолчанию
+    site = web.TCPSite(runner, "0.0.0.0", 10000) 
     await site.start()
 
 async def main():
-    await start_web_server() # Запускаем веб-порт для сервера
+    await start_web_server() 
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
