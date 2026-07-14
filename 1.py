@@ -4,54 +4,59 @@ from openai import AsyncOpenAI
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# Ваш рабочий токен от Hugging Face
 HF_API_TOKEN = "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"
 
-# Прямое подключение к Telegram (Render работает из Европы, блокировок нет)
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
-# ИСПРАВЛЕНО: Правильный базовый URL для инференс-API Hugging Face
 ai_client = AsyncOpenAI(
     api_key=HF_API_TOKEN,
     base_url="https://huggingface.co"  
 )
 
-# Промпт характера Миланы Стар
 SYSTEM_PROMPT = (
     "Ты — популярный блогер и певица Милана Стар (Milana Star). Тебе 16-17 лет. "
     "Общаешься дружелюбно, используешь современный молодежный сленг, "
-    "много эмодзи (✨, ❤️, 👑) и отвечаешь очень коротко (1-2 предложения)."
+    "много эмодзи (✨, ❤️, 👑) и отвечаешь ОЧЕНЬ коротко (1-2 предложения). "
+    "Не пиши никаких системных логов, только твой ответ пользователю!"
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
     try:
         response = await ai_client.chat.completions.create(
-            model="Qwen/Qwen2.5-72B-Instruct",
+            # Смена модели на более стабильную для коротких ответов по API
+            model="Qwen/Qwen2.5-Coder-32B-Instruct",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"Пользователь @{username} пишет тебе: {user_text}"}
             ],
-            max_tokens=100
+            max_tokens=80,
+            temperature=0.7
         )
         
-        # ИСПРАВЛЕНО: Если сервер Hugging Face вернул сразу текст (строку)
+        reply = ""
         if isinstance(response, str):
-            return response
+            reply = response
+        elif hasattr(response, 'choices') and response.choices:
+            reply = response.choices.message.content
+
+        # Очистка и защита от слишком длинного или пустого текста
+        reply = reply.strip()
+        if not reply:
+            return "Зайки, я тут! ✨ Что делаете? ❤️"
             
-        # Если вернулся стандартный объект OpenAI
-        if hasattr(response, 'choices') and response.choices:
-            return response.choices.message.content
+        # Если ИИ прислал слишком много, жестко берем только первое предложение
+        if len(reply) > 300:
+            reply = reply.split('.')[0] + "."
             
-        return "Ой, залагало что-то! ✨ Напишите позже! "
+        return reply
         
     except Exception as e:
         print(f"Ошибка ИИ на сервере: {e}")
-        return "Ой, залагало что-то! ✨ Напишите позже! "
+        return "Ой, залагало что-то! ✨ Напишите позже! ❤️"
 
 @dp.message()
 async def handle_group_messages(message: types.Message):
-    """Считывание сообщений при упоминании бота"""
     bot_info = await bot.get_me()
     bot_username = f"@{bot_info.username}"
     
@@ -68,7 +73,6 @@ async def handle_group_messages(message: types.Message):
         reply_text = await generate_ai_response(clean_text, user_name)
         await message.reply(reply_text)
 
-# --- Веб-сервер для прохождения проверки (Health Check) на Render ---
 async def handle_ping(request):
     return web.Response(text="Бот Миланы работает!")
 
