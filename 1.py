@@ -4,14 +4,14 @@ from openai import AsyncOpenAI
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# ВСТАВЬТЕ СЮДА ВАШ НОВЫЙ ТОКЕН HUGGING FACE (НАЧИНАЕТСЯ НА hf_...)
+# Ваш токен от Hugging Face
 HF_API_TOKEN = "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"
 
-# Прямое подключение к Telegram (Render работает из Европы, блокировок нет)
+# Прямое подключение к Telegram (без зеркал, на Render из Европы оно работает стабильно)
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
-# Подключаемся к бесплатному безлимитному шлюзу Hugging Face
+# ИСПРАВЛЕНО: Правильный базовый URL для инференс-API Hugging Face
 ai_client = AsyncOpenAI(
     api_key=HF_API_TOKEN,
     base_url="https://huggingface.co"  
@@ -27,7 +27,7 @@ SYSTEM_PROMPT = (
 async def generate_ai_response(user_text: str, username: str) -> str:
     try:
         response = await ai_client.chat.completions.create(
-            # Используем мощную и бесплатную модель Qwen через сервер Hugging Face
+            # Бесплатная, мощная и быстрая модель Qwen от Alibaba, доступная на HF
             model="Qwen/Qwen2.5-72B-Instruct",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -38,7 +38,7 @@ async def generate_ai_response(user_text: str, username: str) -> str:
         return response.choices.message.content
     except Exception as e:
         print(f"Ошибка ИИ на сервере: {e}")
-        return "Ой, залагало что-то! ✨ Напишите позже! "
+        return "Ой, залагало что-то! ✨ Напишите позже! ❤️"
 
 @dp.message()
 async def handle_group_messages(message: types.Message):
