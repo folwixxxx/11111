@@ -4,10 +4,10 @@ from openai import AsyncOpenAI
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# Ваш токен от Hugging Face
+# Ваш рабочий токен от Hugging Face
 HF_API_TOKEN = "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"
 
-# Прямое подключение к Telegram (без зеркал, на Render из Европы оно работает стабильно)
+# Прямое подключение к Telegram (Render работает из Европы, блокировок нет)
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
@@ -27,7 +27,6 @@ SYSTEM_PROMPT = (
 async def generate_ai_response(user_text: str, username: str) -> str:
     try:
         response = await ai_client.chat.completions.create(
-            # Бесплатная, мощная и быстрая модель Qwen от Alibaba, доступная на HF
             model="Qwen/Qwen2.5-72B-Instruct",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -35,10 +34,20 @@ async def generate_ai_response(user_text: str, username: str) -> str:
             ],
             max_tokens=100
         )
-        return response.choices.message.content
+        
+        # ИСПРАВЛЕНО: Если сервер Hugging Face вернул сразу текст (строку)
+        if isinstance(response, str):
+            return response
+            
+        # Если вернулся стандартный объект OpenAI
+        if hasattr(response, 'choices') and response.choices:
+            return response.choices.message.content
+            
+        return "Ой, залагало что-то! ✨ Напишите позже! "
+        
     except Exception as e:
         print(f"Ошибка ИИ на сервере: {e}")
-        return "Ой, залагало что-то! ✨ Напишите позже! ❤️"
+        return "Ой, залагало что-то! ✨ Напишите позже! "
 
 @dp.message()
 async def handle_group_messages(message: types.Message):
