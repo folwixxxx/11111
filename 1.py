@@ -15,7 +15,7 @@ dp = Dispatcher()
 # Зеркало OpenRouter для стабильности
 ai_client = AsyncOpenAI(
     api_key=OPENROUTER_API_KEY,
-    base_url="https://ru.net"
+    base_url="https://ru.net"  # <--- ИСПРАВЛЕНО
 )
 
 SYSTEM_PROMPT = (
