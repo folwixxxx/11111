@@ -1,21 +1,19 @@
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.client.telegram import TelegramAPIServer
 from openai import AsyncOpenAI
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
 OPENROUTER_API_KEY = "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"
 
-# ИСПРАВЛЕНО: Зеркало Telegram с правильным путем /bot
-local_server = TelegramAPIServer.from_base("https://vkrf.ru")
-bot = Bot(token=TELEGRAM_TOKEN, server=local_server)
+# На Render используем ОФИЦИАЛЬНЫЙ Telegram API, так как сервер находится за рубежом
+bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
-# ИСПРАВЛЕНО: Полный и рабочий адрес зеркала для OpenRouter
+# На Render используем ОФИЦИАЛЬНЫЙ OpenRouter без всяких российских проксей
 ai_client = AsyncOpenAI(
     api_key=OPENROUTER_API_KEY,
-    base_url="https://ru.net"  
+    base_url="https://openrouter.ai"  
 )
 
 SYSTEM_PROMPT = (
@@ -35,7 +33,8 @@ async def generate_ai_response(user_text: str, username: str) -> str:
         )
         return response.choices.message.content
     except Exception as e:
-        print(f"Ошибка ИИ: {e}")
+        # Лог ошибки запишется прямо в панель управления Render во вкладку Logs
+        print(f"Ошибка ИИ на сервере: {e}")
         return "Ой, залагало что-то! ✨ Напишите позже! ❤️"
 
 @dp.message()
@@ -53,7 +52,7 @@ async def handle_group_messages(message: types.Message):
         reply_text = await generate_ai_response(clean_text, user_name)
         await message.reply(reply_text)
 
-# --- Заглушка веб-сервера для Render.com ---
+# --- Веб-сервер для удержания Render.com в активном состоянии ---
 async def handle_ping(request):
     return web.Response(text="Бот Миланы работает!")
 
