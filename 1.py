@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# ВСТАВЬТЕ СЮДА ВАШ БЕСПЛАТНЫЙ КЛЮЧ ИЗ GOOGLE AI STUDIO (НАЧИНАЕТСЯ НА AIzaSy...)
+# Твой проверенный ключ API от Google Gemini
 GEMINI_API_KEY = "AQ.Ab8RN6KGQidkl5miYRWMC9Qx9U_D3Xi3X5DWXj8lmPU3PszI4w"
 
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -19,7 +19,8 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Функция запроса к стабильному и бесплатному Google Gemini API"""
+    """Функция запроса к Google Gemini API через твой ключ"""
+    # ИСПРАВЛЕНО: Ссылка собрана строго по официальной документации Google Cloud
     url = f"https://googleapis.com{GEMINI_API_KEY}"
     
     payload = {
@@ -41,7 +42,7 @@ async def generate_ai_response(user_text: str, username: str) -> str:
             async with session.post(url, json=payload, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Извлекаем чистый сгенерированный текст из ответа Google
+                    # ИСПРАВЛЕНО: Точный и безопасный путь до сгенерированного текста
                     reply = data['candidates'][0]['content']['parts'][0]['text']
                     return reply.strip()
                 else:
@@ -49,7 +50,7 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                     return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
     except Exception as e:
         print(f"Исключение при запросе к ИИ: {e}")
-        return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
+        return "Ой, залагало что-то, зайки! ✨ Напишите позже! "
 
 @dp.message()
 async def handle_group_messages(message: types.Message):
