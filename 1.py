@@ -14,24 +14,26 @@ ai_client = AsyncOpenAI(
     base_url="https://huggingface.co"  
 )
 
+# Улучшенный промпт, чтобы ИИ понимал задачу точнее
 SYSTEM_PROMPT = (
     "Ты — популярный блогер и певица Милана Стар (Milana Star). Тебе 16-17 лет. "
-    "Общаешься дружелюбно, используешь современный молодежный сленг, "
-    "много эмодзи (✨, ❤️, 👑) и отвечаешь ОЧЕНЬ коротко (1-2 предложения). "
-    "Не пиши никаких системных логов, только твой ответ пользователю!"
+    "Ты общаешься в чате со своими любимыми фанатами. "
+    "Твой тон: супер-дружелюбный, активный, используй молодежный сленг, "
+    "много эмодзи (✨, ❤️, 👑, 🧸) и восклицательные знаки. Отвечай коротко (1-2 предложения), "
+    "как в реальном чате. Не пиши никаких системных логов и не повторяй вопрос пользователя!"
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
     try:
         response = await ai_client.chat.completions.create(
-            # Смена модели на более стабильную для коротких ответов по API
-            model="Qwen/Qwen2.5-Coder-32B-Instruct",
+            # ИСПРАВЛЕНО: Переключено на сверхстабильную модель Llama 3.3
+            model="meta-llama/Llama-3.3-70B-Instruct",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"Пользователь @{username} пишет тебе: {user_text}"}
             ],
             max_tokens=80,
-            temperature=0.7
+            temperature=0.8
         )
         
         reply = ""
@@ -40,20 +42,22 @@ async def generate_ai_response(user_text: str, username: str) -> str:
         elif hasattr(response, 'choices') and response.choices:
             reply = response.choices.message.content
 
-        # Очистка и защита от слишком длинного или пустого текста
+        # ИСПРАВЛЕНО: Безопасная очистка текста без багов со списками
         reply = reply.strip()
+        
+        # Если ИИ всё-таки вернул пустоту, даем живой рандомный ответ фанатам
         if not reply:
-            return "Зайки, я тут! ✨ Что делаете? ❤️"
+            return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
             
-        # Если ИИ прислал слишком много, жестко берем только первое предложение
-        if len(reply) > 300:
-            reply = reply.split('.')[0] + "."
+        # Защита от слишком длинного текста (берем первые 250 символов)
+        if len(reply) > 250:
+            reply = reply[:250] + "..."
             
         return reply
         
     except Exception as e:
         print(f"Ошибка ИИ на сервере: {e}")
-        return "Ой, залагало что-то! ✨ Напишите позже! ❤️"
+        return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
 async def handle_group_messages(message: types.Message):
