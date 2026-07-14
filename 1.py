@@ -4,8 +4,8 @@ from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# Твой нормальный ключ API (с ним теперь всё будет работать)
-GEMINI_API_KEY = "AQ.Ab8RN6KGQidkl5miYRWMC9Qx9U_D3Xi3X5DWXj8lmPU3PszI4w"
+# Твой рабочий токен Hugging Face
+HF_API_TOKEN = "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"
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
@@ -19,26 +19,21 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Функция запроса к Google Gemini с поддержкой ключей нового формата AQ."""
-    # Очищаем URL от передачи ключа через параметры
-    url = "https://googleapis.com"
+    """Чистый HTTP-запрос к бесплатной модели без использования библиотеки openai"""
+    url = "https://huggingface.co"
     
-    payload = {
-        "contents": [{
-            "parts": [{
-                "text": f"{SYSTEM_PROMPT}\n\nПользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Миланы Стар:"
-            }]
-        }],
-        "generationConfig": {
-            "maxOutputTokens": 100,
-            "temperature": 0.7
-        }
+    headers = {
+        "Authorization": f"Bearer {HF_API_TOKEN}",
+        "Content-Type": "application/json"
     }
     
-    # ИСПРАВЛЕНО: Передаем ключ AQ. через правильные заголовки Google Cloud
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY
+    payload = {
+        "inputs": f"<|system|>\n{SYSTEM_PROMPT}\n<|user|>\nПользователь @{username} пишет тебе: {user_text}\n<|assistant|>\n",
+        "parameters": {
+            "max_new_tokens": 100,
+            "temperature": 0.7,
+            "return_full_text": False
+        }
     }
     
     try:
@@ -46,20 +41,22 @@ async def generate_ai_response(user_text: str, username: str) -> str:
             async with session.post(url, json=payload, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Безопасное извлечение текста из JSON ответа Google
-                    if 'candidates' in data and data['candidates']:
-                        content = data['candidates'][0].get('content', {})
-                        parts = content.get('parts', [])
-                        if parts and 'text' in parts[0]:
-                            return parts[0]['text'].strip()
                     
-                    print(f"Неожиданный формат ответа Google: {data}")
+                    # Hugging Face возвращает массив со словарем генерации
+                    if isinstance(data, list) and len(data) > 0:
+                        reply = data[0].get('generated_text', '')
+                        reply = reply.strip()
+                        
+                        # Если ИИ всё же прислал пустоту или мусор
+                        if not reply or len(reply) < 2:
+                            return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
+                        return reply
+                        
                     return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
                 else:
-                    # Теперь, если будет сбой, ошибка наконец-то запишется в логи Render!
-                    error_text = await response.text()
-                    print(f"Ошибка Gemini API (Статус {response.status}): {error_text}")
-                    return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
+                    err_log = await response.text()
+                    print(f"Ошибка шлюза ИИ: Статус {response.status} - {err_log}")
+                    return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
     except Exception as e:
         print(f"Исключение при запросе к ИИ: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
