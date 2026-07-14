@@ -1,62 +1,54 @@
 import asyncio
+import aiohttp
 from aiogram import Bot, Dispatcher, types
-from openai import AsyncOpenAI
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-HF_API_TOKEN = "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"
+# ВСТАВЬТЕ СЮДА ВАШ БЕСПЛАТНЫЙ КЛЮЧ ИЗ GOOGLE AI STUDIO (НАЧИНАЕТСЯ НА AIzaSy...)
+GEMINI_API_KEY = "AQ.Ab8RN6KGQidkl5miYRWMC9Qx9U_D3Xi3X5DWXj8lmPU3PszI4w"
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
-ai_client = AsyncOpenAI(
-    api_key=HF_API_TOKEN,
-    base_url="https://huggingface.co"  
-)
-
-# Улучшенный промпт, чтобы ИИ понимал задачу точнее
 SYSTEM_PROMPT = (
     "Ты — популярный блогер и певица Милана Стар (Milana Star). Тебе 16-17 лет. "
     "Ты общаешься в чате со своими любимыми фанатами. "
-    "Твой тон: супер-дружелюбный, активный, используй молодежный сленг, "
+    "Твой тон: супер-дружелюбный, активный, используй современный молодежный сленг, "
     "много эмодзи (✨, ❤️, 👑, 🧸) и восклицательные знаки. Отвечай коротко (1-2 предложения), "
     "как в реальном чате. Не пиши никаких системных логов и не повторяй вопрос пользователя!"
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
+    """Функция запроса к стабильному и бесплатному Google Gemini API"""
+    url = f"https://googleapis.com{GEMINI_API_KEY}"
+    
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": f"{SYSTEM_PROMPT}\n\nПользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Миланы Стар:"
+            }]
+        }],
+        "generationConfig": {
+            "maxOutputTokens": 100,
+            "temperature": 0.7
+        }
+    }
+    
+    headers = {"Content-Type": "application/json"}
+    
     try:
-        response = await ai_client.chat.completions.create(
-            # ИСПРАВЛЕНО: Переключено на сверхстабильную модель Llama 3.3
-            model="meta-llama/Llama-3.3-70B-Instruct",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Пользователь @{username} пишет тебе: {user_text}"}
-            ],
-            max_tokens=80,
-            temperature=0.8
-        )
-        
-        reply = ""
-        if isinstance(response, str):
-            reply = response
-        elif hasattr(response, 'choices') and response.choices:
-            reply = response.choices.message.content
-
-        # ИСПРАВЛЕНО: Безопасная очистка текста без багов со списками
-        reply = reply.strip()
-        
-        # Если ИИ всё-таки вернул пустоту, даем живой рандомный ответ фанатам
-        if not reply:
-            return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
-            
-        # Защита от слишком длинного текста (берем первые 250 символов)
-        if len(reply) > 250:
-            reply = reply[:250] + "..."
-            
-        return reply
-        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    # Извлекаем чистый сгенерированный текст из ответа Google
+                    reply = data['candidates'][0]['content']['parts'][0]['text']
+                    return reply.strip()
+                else:
+                    print(f"Ошибка Gemini API: Статус {response.status}")
+                    return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
     except Exception as e:
-        print(f"Ошибка ИИ на сервере: {e}")
+        print(f"Исключение при запросе к ИИ: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
@@ -77,6 +69,7 @@ async def handle_group_messages(message: types.Message):
         reply_text = await generate_ai_response(clean_text, user_name)
         await message.reply(reply_text)
 
+# --- Веб-сервер для удержания Render.com в активном состоянии ---
 async def handle_ping(request):
     return web.Response(text="Бот Миланы работает!")
 
