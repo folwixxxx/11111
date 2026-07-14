@@ -4,36 +4,37 @@ from openai import AsyncOpenAI
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-OPENROUTER_API_KEY = "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"
+# ВСТАВЬТЕ СЮДА ВАШ НОВЫЙ КЛЮЧ ОТ SAMBANOVA (НАЧИНАЕТСЯ НА sbv-...)
+SAMBANOVA_API_KEY = "28e44a8a-e4e0-404b-af2e-937385fe22a6"
 
-# На Render используем ОФИЦИАЛЬНЫЙ Telegram API, так как сервер находится за рубежом
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
-# На Render используем ОФИЦИАЛЬНЫЙ OpenRouter без всяких российских проксей
+# Подключаемся к стабильному бесплатному API SambaNova
 ai_client = AsyncOpenAI(
-    api_key=OPENROUTER_API_KEY,
-    base_url="https://openrouter.ai"  
+    api_key=SAMBANOVA_API_KEY,
+    base_url="https://sambanova.ai"  
 )
 
 SYSTEM_PROMPT = (
     "Ты — популярный блогер и певица Милана Стар (Milana Star). Тебе 16-17 лет. "
-    "Общаешься дружелюбно, используешь сленг, эмодзи (✨, ❤️, 👑) и отвечаешь коротко."
+    "Общаешься дружелюбно, используешь современный молодежный сленг, "
+    "много эмодзи (✨, ❤️, 👑) и отвечаешь очень коротко (1-2 предложения)."
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
     try:
         response = await ai_client.chat.completions.create(
-            model="google/gemma-3-27b-it:free",
+            # Идеальная бесплатная и умная модель для чат-ботов
+            model="Meta-Llama-3.1-8B-Instruct",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"Пользователь @{username} пишет тебе: {user_text}"}
             ],
-            max_tokens=150
+            max_tokens=100
         )
         return response.choices.message.content
     except Exception as e:
-        # Лог ошибки запишется прямо в панель управления Render во вкладку Logs
         print(f"Ошибка ИИ на сервере: {e}")
         return "Ой, залагало что-то! ✨ Напишите позже! ❤️"
 
@@ -52,7 +53,6 @@ async def handle_group_messages(message: types.Message):
         reply_text = await generate_ai_response(clean_text, user_name)
         await message.reply(reply_text)
 
-# --- Веб-сервер для удержания Render.com в активном состоянии ---
 async def handle_ping(request):
     return web.Response(text="Бот Миланы работает!")
 
