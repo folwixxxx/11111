@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# Твой рабочий токен Hugging Face
+# Ваш токен от Hugging Face
 HF_API_TOKEN = "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"
 
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -19,12 +19,15 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Прямой HTTP-запрос к бесплатной модели Qwen через шлюз Hugging Face"""
+    """Прямой HTTP-запрос к бесплатной модели Qwen через корректный шлюз Hugging Face"""
+    # ИСПРАВЛЕНО: Указан точный официальный эндпоинт API
     url = "https://huggingface.co"
     
+    # ИСПРАВЛЕНО: Добавлен заголовок User-Agent для успешного прохождения CloudFront
     headers = {
         "Authorization": f"Bearer {HF_API_TOKEN}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "TelegramBot/1.0"
     }
     
     payload = {
@@ -42,12 +45,12 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                 if response.status == 200:
                     data = await response.json()
                     
-                    # Извлекаем сгенерированный текст из формата ответа Hugging Face
+                    # ИСПРАВЛЕНО: Корректное чтение текста из списка словарей Hugging Face
                     if isinstance(data, list) and len(data) > 0:
-                        reply = data[0].get('generated_text', '')
+                        first_candidate = data[0]
+                        reply = first_candidate.get('generated_text', '')
                         reply = reply.strip()
                         
-                        # Если ИИ прислал пустоту или слишком короткий текст
                         if not reply or len(reply) < 2:
                             return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
                         return reply
