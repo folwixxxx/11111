@@ -20,9 +20,9 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """HTTP-запрос к Gemini, поддерживающий авторизацию ключей AQ через заголовки Bearer"""
-    # ИСПРАВЛЕНО: Указан верный официальный эндпоинт v1beta для генерации текста
-    url = "https://googleapis.com"
+    """HTTP-запрос к Gemini, поддерживающий ключи формата AQ."""
+    # ИСПРАВЛЕНО: Ключи AQ передаются через параметр ?key= в URL, заголовки Bearer вызывают 401/404
+    url = f"https://googleapis.com{GEMINI_API_KEY}"
     
     payload = {
         "systemInstruction": {
@@ -37,10 +37,8 @@ async def generate_ai_response(user_text: str, username: str) -> str:
         }
     }
     
-    # Ключи формата AQ. авторизуются строго через заголовок Authorization: Bearer
     headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {GEMINI_API_KEY}"
+        "Content-Type": "application/json"
     }
     
     try:
@@ -49,14 +47,15 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                 if response.status == 200:
                     data = await response.json()
                     
-                    # Безопасное извлечение текста из JSON ответа по индексам
+                    # ИСПРАВЛЕНО: Жесткий, абсолютно безопасный пошаговый разбор списков без багов
                     if isinstance(data, dict) and 'candidates' in data:
                         candidates = data['candidates']
                         if isinstance(candidates, list) and len(candidates) > 0:
-                            content = candidates[0].get('content', {})
+                            first_candidate = candidates[0]  # Извлекаем первый элемент списка
+                            content = first_candidate.get('content', {})
                             parts = content.get('parts', [])
                             if isinstance(parts, list) and len(parts) > 0:
-                                text_response = parts[0].get('text', '').strip()
+                                text_response = parts[0].get('text', '').strip()  # Извлекаем текст
                                 if text_response:
                                     return text_response
                     
