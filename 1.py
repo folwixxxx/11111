@@ -3,7 +3,7 @@ import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
-# ТОКЕНЫ И КЛЮЧИ (Рекомендуется скрыть в Environment Variables на Render)
+# ТОКЕНЫ И КЛЮЧИ
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
 GEMINI_API_KEY = "AQ.Ab8RN6KGQidkl5miYRWMC9Qx9U_D3Xi3X5DWXj8lmPU3PszI4w"
 
@@ -19,11 +19,10 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Прямой HTTP-запрос к Google Gemini API по полному официальному пути"""
-    # ИСПРАВЛЕНО: Указан корректный эндпоинт для модели gemini-2.5-flash
-    url = "https://googleapis.com"
+    """Прямой HTTP-запрос к Google Gemini API"""
+    # ИСПРАВЛЕНО: Ключ AQ. теперь надежнее передавать прямо параметром в URL (?key=)
+    url = f"https://googleapis.com{GEMINI_API_KEY}"
     
-    # ИСПРАВЛЕНО: Системный промпт вынесен в правильное поле systemInstruction согласно API Gemini
     payload = {
         "systemInstruction": {
             "parts": [{"text": SYSTEM_PROMPT}]
@@ -40,8 +39,7 @@ async def generate_ai_response(user_text: str, username: str) -> str:
     }
     
     headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY
+        "Content-Type": "application/json"
     }
     
     try:
@@ -50,22 +48,24 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                 if response.status == 200:
                     data = await response.json()
                     
-                    # ИСПРАВЛЕНО: Безопасное и корректное чтение JSON-структуры
-                    if 'candidates' in data and data['candidates']:
-                        candidate = data['candidates'][0]
-                        content = candidate.get('content', {})
+                    # ИСПРАВЛЕНО: Теперь парсинг списка candidates[0] полностью безопасен
+                    if 'candidates' in data and len(data['candidates']) > 0:
+                        content = data['candidates'][0].get('content', {})
                         parts = content.get('parts', [])
-                        if parts and 'text' in parts[0]:
+                        if parts and len(parts) > 0 and 'text' in parts[0]:
                             return parts[0]['text'].strip()
                     
+                    print(f"Структура JSON не совпала. Ответ от Google: {data}")
                     return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
                 else:
                     err_log = await response.text()
-                    print(f"Ошибка Gemini API: Статус {response.status} - {err_log}")
-                    return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
+                    # ТЕПЕРЬ ЭТО ОПЕРАТИВНО ПОЯВИТСЯ В ЛОГАХ
+                    print(f"Ошибка Gemini API! Статус: {response.status}. Ответ сервера: {err_log}")
+                    return f"Ошибка API Google (Статус {response.status}). Проверь логи!"
+                    
     except Exception as e:
-        print(f"Исключение при запросе к ИИ: {e}")
-        # Если падает тут, в логи выведется точная строка с ошибкой Python
+        # ИСПРАВЛЕНО: Теперь любые внутренние падения кода (ошибки синтаксиса) выведутся в логи Render
+        print(f"Критическое исключение Python в generate_ai_response: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
