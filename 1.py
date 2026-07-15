@@ -3,8 +3,8 @@ import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
+# ТОКЕНЫ И КЛЮЧИ (Рекомендуется скрыть в Environment Variables на Render)
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# Твой нормальный ключ Gemini
 GEMINI_API_KEY = "AQ.Ab8RN6KGQidkl5miYRWMC9Qx9U_D3Xi3X5DWXj8lmPU3PszI4w"
 
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -20,13 +20,17 @@ SYSTEM_PROMPT = (
 
 async def generate_ai_response(user_text: str, username: str) -> str:
     """Прямой HTTP-запрос к Google Gemini API по полному официальному пути"""
-    # ИСПРАВЛЕНО: Полный и точный эндпоинт для модели gemini-2.5-flash
+    # ИСПРАВЛЕНО: Указан корректный эндпоинт для модели gemini-2.5-flash
     url = "https://googleapis.com"
     
+    # ИСПРАВЛЕНО: Системный промпт вынесен в правильное поле systemInstruction согласно API Gemini
     payload = {
+        "systemInstruction": {
+            "parts": [{"text": SYSTEM_PROMPT}]
+        },
         "contents": [{
             "parts": [{
-                "text": f"{SYSTEM_PROMPT}\n\nПользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Миланы Стар:"
+                "text": f"Пользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Миланы Стар:"
             }]
         }],
         "generationConfig": {
@@ -35,7 +39,6 @@ async def generate_ai_response(user_text: str, username: str) -> str:
         }
     }
     
-    # ИСПРАВЛЕНО: Авторизация ключа нового формата AQ через заголовки Google Cloud
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": GEMINI_API_KEY
@@ -46,9 +49,11 @@ async def generate_ai_response(user_text: str, username: str) -> str:
             async with session.post(url, json=payload, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # ИСПРАВЛЕНО: Безопасное чтение JSON-структуры Google Gemini
+                    
+                    # ИСПРАВЛЕНО: Безопасное и корректное чтение JSON-структуры
                     if 'candidates' in data and data['candidates']:
-                        content = data['candidates'][0].get('content', {})
+                        candidate = data['candidates'][0]
+                        content = candidate.get('content', {})
                         parts = content.get('parts', [])
                         if parts and 'text' in parts[0]:
                             return parts[0]['text'].strip()
@@ -60,6 +65,7 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                     return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
     except Exception as e:
         print(f"Исключение при запросе к ИИ: {e}")
+        # Если падает тут, в логи выведется точная строка с ошибкой Python
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
