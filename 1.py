@@ -3,7 +3,7 @@ import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
-# ТОКЕН ТЕЛЕГРАМ БОТА (Вставьте ваш СВЕЖИЙ рабочий токен)
+# ТОКЕН ТЕЛЕГРАМ БОТА
 TELEGRAM_TOKEN = "8957069453:AAHAQbxD8NekEADtz_bh6wKKZ49kccWaRCc"
 # ВСТАВЬТЕ ВАШ КЛЮЧ ФОРМАТА AQ.
 GEMINI_API_KEY = "AQ.Ab8RN6JFgt_WGxOj3Rr24rBr-0sWO-F0MdgvNnsJwHQLtTk41g"
@@ -20,9 +20,9 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """HTTP-запрос к Gemini через отказоустойчивый шлюз, поддерживающий ключи AQ."""
-    # Используем прокси-зеркало для бесперебойных запросов без блокировки IP со стороны Google
-    url = "https://cloudflare.com"
+    """HTTP-запрос к Gemini, поддерживающий авторизацию ключей AQ через заголовки Bearer"""
+    # ИСПРАВЛЕНО: Указан верный официальный эндпоинт v1beta для генерации текста
+    url = "https://googleapis.com"
     
     payload = {
         "systemInstruction": {
@@ -37,7 +37,7 @@ async def generate_ai_response(user_text: str, username: str) -> str:
         }
     }
     
-    # Новые ключи AQ. передаются строго через заголовок API-Key без параметров в URL
+    # Ключи формата AQ. авторизуются строго через заголовок Authorization: Bearer
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {GEMINI_API_KEY}"
@@ -49,7 +49,7 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                 if response.status == 200:
                     data = await response.json()
                     
-                    # Безопасное извлечение текста из JSON ответа
+                    # Безопасное извлечение текста из JSON ответа по индексам
                     if isinstance(data, dict) and 'candidates' in data:
                         candidates = data['candidates']
                         if isinstance(candidates, list) and len(candidates) > 0:
