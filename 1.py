@@ -1,18 +1,14 @@
 import asyncio
+import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiohttp import web
-from google import genai
-from google.genai import types as genai_types
 
 # ТОКЕНЫ И КЛЮЧИ
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-GEMINI_API_KEY = "AQ.Ab8RN6KGQidkl5miYRWMC9Qx9U_D3Xi3X5DWXj8lmPU3PszI4w"
+GEMINI_API_KEY = "AQ.Ab8RN6JFgt_WGxOj3Rr24rBr-0sWO-F0MdgvNnsJwHQLtTk41g"
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
-
-# Инициализируем официальный клиент Gemini (он сам разберется с форматом AQ.)
-ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = (
     "Ты — популярный блогер и певица Милана Стар (Milana Star). Тебе 16-17 лет. "
@@ -23,28 +19,59 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Запрос через официальный SDK Google GenAI"""
+    """HTTP-запрос к Gemini API с поддержкой новых Auth-ключей формата AQ"""
+    # Для ключей AQ используется чистый эндпоинт v1beta
+    url = "https://googleapis.com"
+    
+    payload = {
+        "systemInstruction": {
+            "parts": [{"text": SYSTEM_PROMPT}]
+        },
+        "contents": [{
+            "parts": [{
+                "text": f"Пользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Милана Стар:"
+            }]
+        }],
+        "generationConfig": {
+            "maxOutputTokens": 100,
+            "temperature": 0.7
+        }
+    }
+    
+    # ИСПРАВЛЕНО: Ключи AQ передаются как Bearer токен в заголовке Authorization
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GEMINI_API_KEY}"
+    }
+    
     try:
-        # Запуск тяжелого синхронного вызова SDK в асинхронном потоке, чтобы бот не фризил
-        response = await asyncio.to_thread(
-            ai_client.models.generate_content,
-            model='gemini-2.5-flash',
-            contents=f"Пользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Миланы Стар:",
-            config=genai_types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=100,
-                temperature=0.7
-            )
-        )
-        
-        if response.text:
-            return response.text.strip()
-        
-        return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
-        
+        async with aiohttp.ClientSession() as session:
+            # ИСПРАВЛЕНО: params с ключом больше не передаются, только новые заголовки headers
+            async with session.post(url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # Железобетонно безопасный разбор JSON структуры ответа
+                    if isinstance(data, dict) and 'candidates' in data:
+                        candidates = data['candidates']
+                        if isinstance(candidates, list) and len(candidates) > 0:
+                            first_candidate = candidates[0]
+                            content = first_candidate.get('content', {})
+                            parts = content.get('parts', [])
+                            if isinstance(parts, list) and len(parts) > 0:
+                                text_response = parts[0].get('text', '').strip()
+                                if text_response:
+                                    return text_response
+                    
+                    print(f"Пришел неожиданный формат JSON: {data}")
+                    return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
+                else:
+                    err_log = await response.text()
+                    print(f"Ошибка от Gemini API. Статус: {response.status}. Ответ: {err_log}")
+                    return f"Ошибка API Google (Статус {response.status})."
+                    
     except Exception as e:
-        # Если ключ заблокирован или не подходит, вы увидите понятную ошибку в логах Render
-        print(f"Ошибка при запросе к Gemini SDK: {e}")
+        print(f"Внутренний сбой скрипта Python: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
@@ -65,7 +92,7 @@ async def handle_group_messages(message: types.Message):
         reply_text = await generate_ai_response(clean_text, user_name)
         await message.reply(reply_text)
 
-# --- Веб-сервер для проверки (Health Check) на Render ---
+# --- Веб-сервер для прохождения проверки (Health Check) на Render ---
 async def handle_ping(request):
     return web.Response(text="Бот Миланы работает!")
 
@@ -79,7 +106,7 @@ async def start_web_server():
 
 async def main():
     await start_web_server() 
-    # Жесткий сброс вебхуков, чтобы убрать ошибку TelegramConflictError
+    # Сброс вебхука принудительно решает проблему TelegramConflictError при перезапусках Render
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
