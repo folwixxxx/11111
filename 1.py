@@ -3,7 +3,7 @@ import random
 from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
-# ТОКЕН ТЕЛЕГРАМ БОТА (Обязательно вставьте СВЕЖИЙ токен, который только что дал @BotFather)
+# ТОКЕН ТЕЛЕГРАМ БОТА (Обязательно замени на СВЕЖИЙ, который скопировал в BotFather!)
 TELEGRAM_TOKEN = "8957069453:AAHAQbxD8NekEADtz_bh6wKKZ49kccWaRCc"
 
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -23,7 +23,6 @@ MILANA_RESPONSES = [
 
 async def generate_ai_response(user_text: str, username: str) -> str:
     """Полностью автономный ответ без внешних запросов и ключей"""
-    # Выбираем случайную фразу и подставляем имя пользователя
     response = random.choice(MILANA_RESPONSES)
     if response.startswith("Зайки, привееет!"):
         return response
@@ -42,7 +41,6 @@ async def handle_group_messages(message: types.Message):
         user_name = message.from_user.username or message.from_user.first_name
         
         await bot.send_chat_action(chat_id=message.chat.id, action="typing")
-        # Имитируем реальное время набора текста
         await asyncio.sleep(1.5)
         
         reply_text = await generate_ai_response(clean_text, user_name)
@@ -62,7 +60,6 @@ async def start_web_server():
 
 async def main():
     await start_web_server() 
-    # Сбрасываем старые вебхуки, убирая вечный Conflict в Telegram
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
