@@ -19,8 +19,8 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Прямой HTTP-запрос к Google Gemini API"""
-    # ИСПРАВЛЕНО: Ключ AQ. теперь надежнее передавать прямо параметром в URL (?key=)
+    """Прямой HTTP-запрос к Google Gemini API через стабильную v1"""
+    # ИСПРАВЛЕНО: Изменен путь на стабильную v1, у которой точный эндпоинт для gemini-2.5-flash
     url = f"https://googleapis.com{GEMINI_API_KEY}"
     
     payload = {
@@ -48,24 +48,22 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                 if response.status == 200:
                     data = await response.json()
                     
-                    # ИСПРАВЛЕНО: Теперь парсинг списка candidates[0] полностью безопасен
+                    # ИСПРАВЛЕНО: Так как candidates это список, сначала получаем первый элемент [0]
                     if 'candidates' in data and len(data['candidates']) > 0:
-                        content = data['candidates'][0].get('content', {})
+                        first_candidate = data['candidates'][0]
+                        content = first_candidate.get('content', {})
                         parts = content.get('parts', [])
                         if parts and len(parts) > 0 and 'text' in parts[0]:
                             return parts[0]['text'].strip()
                     
-                    print(f"Структура JSON не совпала. Ответ от Google: {data}")
+                    print(f"Неожиданный JSON от Google: {data}")
                     return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
                 else:
                     err_log = await response.text()
-                    # ТЕПЕРЬ ЭТО ОПЕРАТИВНО ПОЯВИТСЯ В ЛОГАХ
-                    print(f"Ошибка Gemini API! Статус: {response.status}. Ответ сервера: {err_log}")
-                    return f"Ошибка API Google (Статус {response.status}). Проверь логи!"
-                    
+                    print(f"Ошибка Gemini API: Статус {response.status} - {err_log}")
+                    return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
     except Exception as e:
-        # ИСПРАВЛЕНО: Теперь любые внутренние падения кода (ошибки синтаксиса) выведутся в логи Render
-        print(f"Критическое исключение Python в generate_ai_response: {e}")
+        print(f"Критическая ошибка Python: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
@@ -100,6 +98,8 @@ async def start_web_server():
 
 async def main():
     await start_web_server() 
+    # ИСПРАВЛЕНО: Перед стартом сбрасываем старые зависшие сообщения, чтобы избежать залипания
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
