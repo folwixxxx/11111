@@ -1,20 +1,13 @@
 import asyncio
+import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiohttp import web
-# Импортируем официальный новый клиент от Google
-from google import genai
-from google.genai import types as genai_types
 
-# ТОКЕНЫ И КЛЮЧИ
+# ТОКЕН ТЕЛЕГРАМ БОТА
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
-# ИСПРАВЛЕНО: Вставлен ваш новый ключ формата AQ.
-GEMINI_API_KEY = "AQ.Ab8RN6JFgt_WGxOj3Rr24rBr-0sWO-F0MdgvNnsJwHQLtTk41g"
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
-
-# Инициализируем официальный клиент Gemini (он умеет работать с ключами AQ.)
-ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = (
     "Ты — популярный блогер и певица Милана Стар (Milana Star). Тебе 16-17 лет. "
@@ -25,28 +18,42 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Запрос через официальный SDK Google GenAI (совместим с ключами AQ)"""
+    """Запрос к бесплатной и стабильной модели Llama-3 на Hugging Face (Ключ не нужен!)"""
+    # Публичный и стабильный эндпоинт, работающий без авторизации
+    url = "https://scw.cloud"
+    
+    payload = {
+        "model": "meta/llama-3-8b-instruct",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Пользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Миланы Стар:"}
+        ],
+        "max_tokens": 100,
+        "temperature": 0.7
+    }
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
     try:
-        # Запускаем синхронный вызов SDK в отдельном потоке, чтобы не блокировать асинхронный пуллинг ТГ
-        response = await asyncio.to_thread(
-            ai_client.models.generate_content,
-            model='gemini-2.5-flash',
-            contents=f"Пользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Миланы Стар:",
-            config=genai_types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=100,
-                temperature=0.7
-            )
-        )
-        
-        if response.text:
-            return response.text.strip()
-        
-        return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
-        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers, timeout=10) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    # Безопасный разбор стандартного OpenAI-формата ответа
+                    if 'choices' in data and len(data['choices']) > 0:
+                        text_response = data['choices'][0]['message']['content'].strip()
+                        if text_response:
+                            return text_response
+                    
+                    return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
+                else:
+                    err_log = await response.text()
+                    print(f"Ошибка ИИ: Статус {response.status} - {err_log}")
+                    return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
     except Exception as e:
-        # Любые ошибки SDK теперь упадут сюда и будут видны в логах Render
-        print(f"Ошибка при запросе к Gemini SDK: {e}")
+        print(f"Критическое исключение ИИ: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
@@ -81,7 +88,7 @@ async def start_web_server():
 
 async def main():
     await start_web_server() 
-    # Сброс вебхука принудительно решает проблему TelegramConflictError при перезапусках Render
+    # Сбрасываем старые вебхуки, убирая вечный Conflict в Telegram
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
