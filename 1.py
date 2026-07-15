@@ -3,7 +3,7 @@ import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
-# ВСТАВЬТЕ СЮДА ВАШИ КЛЮЧИ (Рекомендуется обновить токен в @BotFather)
+# ТОКЕНЫ И КЛЮЧИ
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
 GEMINI_API_KEY = "AQ.Ab8RN6KGQidkl5miYRWMC9Qx9U_D3Xi3X5DWXj8lmPU3PszI4w"
 
@@ -19,8 +19,7 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Чистый HTTP-запрос к официальному API Gemini без склеивания строк"""
-    # СТРОГО ОФИЦИАЛЬНЫЙ URL БЕЗ ПАРАМЕТРОВ КЛЮЧА В СТРОКЕ
+    """Прямой HTTP-запрос к Google Gemini API через v1beta"""
     url = "https://googleapis.com"
     
     payload = {
@@ -38,7 +37,6 @@ async def generate_ai_response(user_text: str, username: str) -> str:
         }
     }
     
-    # Ключ передается отдельно в params, aiohttp сам безопасно подставит его в конец через знак '?'
     params = {"key": GEMINI_API_KEY}
     headers = {"Content-Type": "application/json"}
     
@@ -48,27 +46,25 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                 if response.status == 200:
                     data = await response.json()
                     
-                    # Железобетонный безопасный разбор JSON структуры Google
-                    if isinstance(data, dict) and 'candidates' in data:
-                        candidates = data['candidates']
-                        if isinstance(candidates, list) and len(candidates) > 0:
-                            first_candidate = candidates[0]
-                            content = first_candidate.get('content', {})
-                            parts = content.get('parts', [])
-                            if isinstance(parts, list) and len(parts) > 0:
-                                text_response = parts[0].get('text', '').strip()
-                                if text_response:
-                                    return text_response
+                    # ИСПРАВЛЕНО: Жесткий и корректный разбор списков через [0] вместо .get()
+                    if 'candidates' in data and len(data['candidates']) > 0:
+                        first_candidate = data['candidates'][0]
+                        content = first_candidate.get('content', {})
+                        parts = content.get('parts', [])
+                        if parts and len(parts) > 0:
+                            text_response = parts[0].get('text', '').strip()
+                            if text_response:
+                                return text_response
                     
-                    print(f"Пришел неожиданный формат JSON: {data}")
+                    print(f"Не удалось прочитать текст из JSON. Ответ Google: {data}")
                     return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
                 else:
                     err_log = await response.text()
-                    print(f"Ошибка от Gemini API. Статус: {response.status}. Ответ: {err_log}")
-                    return f"Ошибка API Google (Статус {response.status})."
+                    print(f"Ошибка Gemini API: Статус {response.status} - {err_log}")
+                    return f"Ошибка API Google (Статус {response.status}). Проверь логи!"
                     
     except Exception as e:
-        print(f"Внутренний сбой скрипта Python: {e}")
+        print(f"Критическое исключение Python в generate_ai_response: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
@@ -103,7 +99,7 @@ async def start_web_server():
 
 async def main():
     await start_web_server() 
-    # Очищаем очередь обновлений перед стартом, чтобы бот не зависал из-за конфликтов
+    # Очищаем очередь обновлений перед стартом, чтобы избежать ошибок конфликта
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
