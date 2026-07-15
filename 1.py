@@ -19,8 +19,8 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Прямой HTTP-запрос к Google Gemini API через v1beta"""
-    url = "https://googleapis.com"
+    """Прямой HTTP-запрос к официальному API Gemini"""
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     
     payload = {
         "systemInstruction": {
@@ -46,25 +46,27 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                 if response.status == 200:
                     data = await response.json()
                     
-                    # ИСПРАВЛЕНО: Жесткий и корректный разбор списков через [0] вместо .get()
-                    if 'candidates' in data and len(data['candidates']) > 0:
-                        first_candidate = data['candidates'][0]
-                        content = first_candidate.get('content', {})
-                        parts = content.get('parts', [])
-                        if parts and len(parts) > 0:
-                            text_response = parts[0].get('text', '').strip()
-                            if text_response:
-                                return text_response
+                    # ИСПРАВЛЕНО: Безопасный разбор списков JSON без использования .get() на списках
+                    if isinstance(data, dict) and 'candidates' in data:
+                        candidates = data['candidates']
+                        if isinstance(candidates, list) and len(candidates) > 0:
+                            first_candidate = candidates[0]  # Извлечение через индекс
+                            content = first_candidate.get('content', {})
+                            parts = content.get('parts', [])
+                            if isinstance(parts, list) and len(parts) > 0:
+                                text_response = parts[0].get('text', '').strip() # Извлечение через индекс
+                                if text_response:
+                                    return text_response
                     
-                    print(f"Не удалось прочитать текст из JSON. Ответ Google: {data}")
+                    print(f"Пришел неожиданный формат JSON: {data}")
                     return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
                 else:
                     err_log = await response.text()
-                    print(f"Ошибка Gemini API: Статус {response.status} - {err_log}")
-                    return f"Ошибка API Google (Статус {response.status}). Проверь логи!"
+                    print(f"Ошибка от Gemini API. Статус: {response.status}. Ответ: {err_log}")
+                    return f"Ошибка API Google (Статус {response.status})."
                     
     except Exception as e:
-        print(f"Критическое исключение Python в generate_ai_response: {e}")
+        print(f"Внутренний сбой скрипта Python: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
@@ -99,7 +101,7 @@ async def start_web_server():
 
 async def main():
     await start_web_server() 
-    # Очищаем очередь обновлений перед стартом, чтобы избежать ошибок конфликта
+    # Принудительно очищаем вебхуки и зависшие пуллинги, устраняя ошибку Conflict
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
