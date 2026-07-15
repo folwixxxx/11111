@@ -3,7 +3,7 @@ import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
-# ТОКЕНЫ И КЛЮЧИ
+# ВСТАВЬТЕ СЮДА ВАШИ КЛЮЧИ (Рекомендуется обновить токен в @BotFather)
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
 GEMINI_API_KEY = "AQ.Ab8RN6KGQidkl5miYRWMC9Qx9U_D3Xi3X5DWXj8lmPU3PszI4w"
 
@@ -19,8 +19,8 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """Прямой HTTP-запрос к Google Gemini API через v1beta"""
-    # ИСПРАВЛЕНО: Четкое разделение URL и API-ключа через знак вопроса и параметр key
+    """Чистый HTTP-запрос к официальному API Gemini без склеивания строк"""
+    # СТРОГО ОФИЦИАЛЬНЫЙ URL БЕЗ ПАРАМЕТРОВ КЛЮЧА В СТРОКЕ
     url = "https://googleapis.com"
     
     payload = {
@@ -38,7 +38,7 @@ async def generate_ai_response(user_text: str, username: str) -> str:
         }
     }
     
-    # ИСПРАВЛЕНО: Передаем ключ в параметрах запроса params, чтобы избежать склеивания строк
+    # Ключ передается отдельно в params, aiohttp сам безопасно подставит его в конец через знак '?'
     params = {"key": GEMINI_API_KEY}
     headers = {"Content-Type": "application/json"}
     
@@ -48,25 +48,27 @@ async def generate_ai_response(user_text: str, username: str) -> str:
                 if response.status == 200:
                     data = await response.json()
                     
-                    # ИСПРАВЛЕНО: Корректный пошаговый разбор JSON-ответа от Gemini API
-                    if 'candidates' in data and isinstance(data['candidates'], list) and len(data['candidates']) > 0:
-                        first_candidate = data['candidates'][0]
-                        content = first_candidate.get('content', {})
-                        parts = content.get('parts', [])
-                        if parts and len(parts) > 0:
-                            text_response = parts[0].get('text', '').strip()
-                            if text_response:
-                                return text_response
+                    # Железобетонный безопасный разбор JSON структуры Google
+                    if isinstance(data, dict) and 'candidates' in data:
+                        candidates = data['candidates']
+                        if isinstance(candidates, list) and len(candidates) > 0:
+                            first_candidate = candidates[0]
+                            content = first_candidate.get('content', {})
+                            parts = content.get('parts', [])
+                            if isinstance(parts, list) and len(parts) > 0:
+                                text_response = parts[0].get('text', '').strip()
+                                if text_response:
+                                    return text_response
                     
-                    print(f"Не удалось прочитать текст из JSON. Ответ Google: {data}")
+                    print(f"Пришел неожиданный формат JSON: {data}")
                     return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
                 else:
                     err_log = await response.text()
-                    print(f"Ошибка Gemini API: Статус {response.status} - {err_log}")
-                    return f"Ошибка API Google (Статус {response.status}). Проверь логи!"
+                    print(f"Ошибка от Gemini API. Статус: {response.status}. Ответ: {err_log}")
+                    return f"Ошибка API Google (Статус {response.status})."
                     
     except Exception as e:
-        print(f"Критическое исключение Python в generate_ai_response: {e}")
+        print(f"Внутренний сбой скрипта Python: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
@@ -101,7 +103,7 @@ async def start_web_server():
 
 async def main():
     await start_web_server() 
-    # Сбрасываем старые зависшие сообщения, чтобы очистить очередь перед стартом
+    # Очищаем очередь обновлений перед стартом, чтобы бот не зависал из-за конфликтов
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
