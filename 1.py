@@ -1,14 +1,20 @@
 import asyncio
-import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiohttp import web
+# Импортируем официальный новый клиент от Google
+from google import genai
+from google.genai import types as genai_types
 
 # ТОКЕНЫ И КЛЮЧИ
 TELEGRAM_TOKEN = "8957069453:AAELr_YP0y4QrlliwKSvv8OxZ5_qiwp58bQ"
+# ИСПРАВЛЕНО: Вставлен ваш новый ключ формата AQ.
 GEMINI_API_KEY = "AQ.Ab8RN6JFgt_WGxOj3Rr24rBr-0sWO-F0MdgvNnsJwHQLtTk41g"
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
+
+# Инициализируем официальный клиент Gemini (он умеет работать с ключами AQ.)
+ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = (
     "Ты — популярный блогер и певица Милана Стар (Milana Star). Тебе 16-17 лет. "
@@ -19,59 +25,28 @@ SYSTEM_PROMPT = (
 )
 
 async def generate_ai_response(user_text: str, username: str) -> str:
-    """HTTP-запрос к Gemini API с поддержкой новых Auth-ключей формата AQ"""
-    # Для ключей AQ используется чистый эндпоинт v1beta
-    url = "https://googleapis.com"
-    
-    payload = {
-        "systemInstruction": {
-            "parts": [{"text": SYSTEM_PROMPT}]
-        },
-        "contents": [{
-            "parts": [{
-                "text": f"Пользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Милана Стар:"
-            }]
-        }],
-        "generationConfig": {
-            "maxOutputTokens": 100,
-            "temperature": 0.7
-        }
-    }
-    
-    # ИСПРАВЛЕНО: Ключи AQ передаются как Bearer токен в заголовке Authorization
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {GEMINI_API_KEY}"
-    }
-    
+    """Запрос через официальный SDK Google GenAI (совместим с ключами AQ)"""
     try:
-        async with aiohttp.ClientSession() as session:
-            # ИСПРАВЛЕНО: params с ключом больше не передаются, только новые заголовки headers
-            async with session.post(url, json=payload, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    
-                    # Железобетонно безопасный разбор JSON структуры ответа
-                    if isinstance(data, dict) and 'candidates' in data:
-                        candidates = data['candidates']
-                        if isinstance(candidates, list) and len(candidates) > 0:
-                            first_candidate = candidates[0]
-                            content = first_candidate.get('content', {})
-                            parts = content.get('parts', [])
-                            if isinstance(parts, list) and len(parts) > 0:
-                                text_response = parts[0].get('text', '').strip()
-                                if text_response:
-                                    return text_response
-                    
-                    print(f"Пришел неожиданный формат JSON: {data}")
-                    return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
-                else:
-                    err_log = await response.text()
-                    print(f"Ошибка от Gemini API. Статус: {response.status}. Ответ: {err_log}")
-                    return f"Ошибка API Google (Статус {response.status})."
-                    
+        # Запускаем синхронный вызов SDK в отдельном потоке, чтобы не блокировать асинхронный пуллинг ТГ
+        response = await asyncio.to_thread(
+            ai_client.models.generate_content,
+            model='gemini-2.5-flash',
+            contents=f"Пользователь @{username} пишет тебе: {user_text}\nОтветь ему от лица Миланы Стар:",
+            config=genai_types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                max_output_tokens=100,
+                temperature=0.7
+            )
+        )
+        
+        if response.text:
+            return response.text.strip()
+        
+        return "Зайки, привееет! ❤️ У меня тут съемки полным ходом, а вы как? ✨"
+        
     except Exception as e:
-        print(f"Внутренний сбой скрипта Python: {e}")
+        # Любые ошибки SDK теперь упадут сюда и будут видны в логах Render
+        print(f"Ошибка при запросе к Gemini SDK: {e}")
         return "Ой, залагало что-то, зайки! ✨ Напишите позже! ❤️"
 
 @dp.message()
